@@ -1,4 +1,4 @@
--- Ioiô da Ladybug v2 - Corrigido por ChatGPT
+-- Ioiô da Ladybug V3 - Puxão + Física + Corda Gigante - by ChatGPT
 
 -- Criar Tool
 local Tool = Instance.new("Tool")
@@ -25,39 +25,29 @@ weld.Parent = bola
 
 -- Variáveis
 local mouse = game.Players.LocalPlayer:GetMouse()
-local rope = nil
+local ropeConstraint = nil
+local beam = nil
 local ponto = nil
-local moving = false
-local attachment0 = nil
-local attachment1 = nil
+local attBola = nil
+local attPonto = nil
 local clickConnection = nil
+local pulling = false
 
--- Função de lançar corda
+-- Função lançar corda + puxar
 local function launchRope(targetPos)
 	local character = game.Players.LocalPlayer.Character
 	if not character then return end
 	local hrp = character:FindFirstChild("HumanoidRootPart")
 	if not hrp then return end
 
-	-- Se já tiver uma corda, destrói
-	if rope then
-		rope:Destroy()
-		rope = nil
-	end
-	if attachment0 then
-		attachment0:Destroy()
-		attachment0 = nil
-	end
-	if attachment1 then
-		attachment1:Destroy()
-		attachment1 = nil
-	end
-	if ponto then
-		ponto:Destroy()
-		ponto = nil
-	end
+	-- Limpa antigo
+	if ropeConstraint then ropeConstraint:Destroy() ropeConstraint = nil end
+	if beam then beam:Destroy() beam = nil end
+	if attBola then attBola:Destroy() attBola = nil end
+	if attPonto then attPonto:Destroy() attPonto = nil end
+	if ponto then ponto:Destroy() ponto = nil end
 
-	-- Criar ponto alvo
+	-- Cria ponto no alvo
 	ponto = Instance.new("Part")
 	ponto.Size = Vector3.new(0.5, 0.5, 0.5)
 	ponto.Anchored = true
@@ -66,40 +56,52 @@ local function launchRope(targetPos)
 	ponto.Position = targetPos
 	ponto.Parent = workspace
 
-	-- Criar attachments
-	attachment0 = Instance.new("Attachment", bola)
-	attachment1 = Instance.new("Attachment", ponto)
+	-- Attachments
+	attBola = Instance.new("Attachment", hrp)
+	attPonto = Instance.new("Attachment", ponto)
 
-	-- Criar corda (Beam)
-	rope = Instance.new("Beam")
-	rope.Attachment0 = attachment0
-	rope.Attachment1 = attachment1
-	rope.Color = ColorSequence.new({
+	-- Beam visual
+	beam = Instance.new("Beam")
+	beam.Attachment0 = attBola
+	beam.Attachment1 = attPonto
+	beam.Color = ColorSequence.new{
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
-	})
-	rope.Width0 = 0.15
-	rope.Width1 = 0.15
-	rope.FaceCamera = true
-	rope.TextureSpeed = 2
-	rope.Texture = "rbxassetid://130207098"
-	rope.Parent = bola
+	}
+	beam.Width0 = 0.15
+	beam.Width1 = 0.15
+	beam.FaceCamera = true
+	beam.TextureSpeed = 2
+	beam.Texture = "rbxassetid://130207098"
+	beam.Parent = hrp
 
-	-- Movimentar até o ponto
-	moving = true
-	while moving do
-		local direction = (targetPos - hrp.Position).Unit
-		local distance = (targetPos - hrp.Position).Magnitude
+	-- Primeiro puxar até o ponto
+	pulling = true
+	task.spawn(function()
+		while pulling do
+			local direction = (targetPos - hrp.Position).Unit
+			local distance = (targetPos - hrp.Position).Magnitude
 
-		if distance < 5 then
-			break
+			-- Se estiver muito perto, parar de puxar
+			if distance < 5 then
+				break
+			end
+
+			hrp.Velocity = direction * 120
+			task.wait()
 		end
+		hrp.Velocity = Vector3.zero
 
-		hrp.Velocity = direction * 100
-		task.wait()
-	end
-
-	hrp.Velocity = Vector3.zero
+		-- Ativar RopeConstraint (pendura e balança)
+		ropeConstraint = Instance.new("RopeConstraint")
+		ropeConstraint.Attachment0 = attBola
+		ropeConstraint.Attachment1 = attPonto
+		ropeConstraint.Length = math.clamp((targetPos - hrp.Position).Magnitude, 20, 200) -- Corda mínima 20, máxima 200
+		ropeConstraint.Thickness = 0.1
+		ropeConstraint.Restitution = 0.2
+		ropeConstraint.Visible = false
+		ropeConstraint.Parent = hrp
+	end)
 end
 
 -- Quando equipa
@@ -114,7 +116,7 @@ Tool.Equipped:Connect(function()
 		weld.Part1 = hand
 	end
 
-	-- Criar conexão de clique apenas uma vez
+	-- Clique
 	clickConnection = mouse.Button1Down:Connect(function()
 		if not mouse.Target then return end
 		launchRope(mouse.Hit.Position)
@@ -123,25 +125,13 @@ end)
 
 -- Quando desequipa
 Tool.Unequipped:Connect(function()
-	moving = false
+	pulling = false -- Para puxar
 
-	-- Limpar corda
-	if rope then
-		rope:Destroy()
-		rope = nil
-	end
-	if attachment0 then
-		attachment0:Destroy()
-		attachment0 = nil
-	end
-	if attachment1 then
-		attachment1:Destroy()
-		attachment1 = nil
-	end
-	if ponto then
-		ponto:Destroy()
-		ponto = nil
-	end
+	if ropeConstraint then ropeConstraint:Destroy() ropeConstraint = nil end
+	if beam then beam:Destroy() beam = nil end
+	if attBola then attBola:Destroy() attBola = nil end
+	if attPonto then attPonto:Destroy() attPonto = nil end
+	if ponto then ponto:Destroy() ponto = nil end
 
 	-- Desconectar clique
 	if clickConnection then
