@@ -1,0 +1,154 @@
+-- Ioiô da Ladybug v2 - Corrigido por ChatGPT
+
+-- Criar Tool
+local Tool = Instance.new("Tool")
+Tool.Name = "Ioiô Ladybug"
+Tool.RequiresHandle = false
+Tool.Parent = game.Players.LocalPlayer.Backpack
+
+-- Criar bola do ioiô
+local bola = Instance.new("Part")
+bola.Name = "Ioiô"
+bola.Shape = Enum.PartType.Ball
+bola.Size = Vector3.new(1, 1, 1)
+bola.Color = Color3.fromRGB(0, 0, 0)
+bola.Material = Enum.Material.SmoothPlastic
+bola.CanCollide = false
+bola.Anchored = false
+bola.Parent = Tool
+
+-- Weld para prender na mão
+local weld = Instance.new("WeldConstraint")
+weld.Part0 = bola
+weld.Part1 = nil
+weld.Parent = bola
+
+-- Variáveis
+local mouse = game.Players.LocalPlayer:GetMouse()
+local rope = nil
+local ponto = nil
+local moving = false
+local attachment0 = nil
+local attachment1 = nil
+local clickConnection = nil
+
+-- Função de lançar corda
+local function launchRope(targetPos)
+	local character = game.Players.LocalPlayer.Character
+	if not character then return end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	-- Se já tiver uma corda, destrói
+	if rope then
+		rope:Destroy()
+		rope = nil
+	end
+	if attachment0 then
+		attachment0:Destroy()
+		attachment0 = nil
+	end
+	if attachment1 then
+		attachment1:Destroy()
+		attachment1 = nil
+	end
+	if ponto then
+		ponto:Destroy()
+		ponto = nil
+	end
+
+	-- Criar ponto alvo
+	ponto = Instance.new("Part")
+	ponto.Size = Vector3.new(0.5, 0.5, 0.5)
+	ponto.Anchored = true
+	ponto.CanCollide = false
+	ponto.Transparency = 1
+	ponto.Position = targetPos
+	ponto.Parent = workspace
+
+	-- Criar attachments
+	attachment0 = Instance.new("Attachment", bola)
+	attachment1 = Instance.new("Attachment", ponto)
+
+	-- Criar corda (Beam)
+	rope = Instance.new("Beam")
+	rope.Attachment0 = attachment0
+	rope.Attachment1 = attachment1
+	rope.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+	})
+	rope.Width0 = 0.15
+	rope.Width1 = 0.15
+	rope.FaceCamera = true
+	rope.TextureSpeed = 2
+	rope.Texture = "rbxassetid://130207098"
+	rope.Parent = bola
+
+	-- Movimentar até o ponto
+	moving = true
+	while moving do
+		local direction = (targetPos - hrp.Position).Unit
+		local distance = (targetPos - hrp.Position).Magnitude
+
+		if distance < 5 then
+			break
+		end
+
+		hrp.Velocity = direction * 100
+		task.wait()
+	end
+
+	hrp.Velocity = Vector3.zero
+end
+
+-- Quando equipa
+Tool.Equipped:Connect(function()
+	local character = game.Players.LocalPlayer.Character
+	if not character then return end
+
+	-- Prender bola na mão
+	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
+	if hand then
+		bola.CFrame = hand.CFrame * CFrame.new(0, -1, 0)
+		weld.Part1 = hand
+	end
+
+	-- Criar conexão de clique apenas uma vez
+	clickConnection = mouse.Button1Down:Connect(function()
+		if not mouse.Target then return end
+		launchRope(mouse.Hit.Position)
+	end)
+end)
+
+-- Quando desequipa
+Tool.Unequipped:Connect(function()
+	moving = false
+
+	-- Limpar corda
+	if rope then
+		rope:Destroy()
+		rope = nil
+	end
+	if attachment0 then
+		attachment0:Destroy()
+		attachment0 = nil
+	end
+	if attachment1 then
+		attachment1:Destroy()
+		attachment1 = nil
+	end
+	if ponto then
+		ponto:Destroy()
+		ponto = nil
+	end
+
+	-- Desconectar clique
+	if clickConnection then
+		clickConnection:Disconnect()
+		clickConnection = nil
+	end
+
+	-- Soltar bola
+	weld.Part1 = nil
+end)
